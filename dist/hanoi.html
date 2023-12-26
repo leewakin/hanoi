@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hanoi</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+      }
+
+      h1,
+      h2 {
+        margin-top: 0;
+      }
+
+      .form {
+        margin-top: 1rem;
+      }
+
+      .form-item {
+        margin-bottom: 0.4rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Hanoi</h1>
+    <h2 id="step"><span>0</span> / <span>0</span></h2>
+    <canvas></canvas>
+
+    <form action="" method="get" class="form">
+      <div class="form-item">
+        <label for="plate">盘子数量: </label>
+        <input type="number" name="plate" id="plate" required value="8" />
+      </div>
+
+      <div class="form-item">
+        <label for="duration">动画时间: </label>
+        <input
+          type="number"
+          name="duration"
+          id="duration"
+          required
+          value="300"
+        />
+      </div>
+    </form>
+
+    <script>(function () {
+    'use strict';
+
+    function usePillar(canvas, ctx, count, width, height, gap) {
+        const /** 每根柱子的起始x坐标 */ startXs = [];
+        const startX = gap / 2;
+        const startY = canvas.height - height;
+        function draw() {
+            for (let i = 0; i < count; i++) {
+                const itemStartX = startXs[i] || (startXs[i] = parseInt(`${startX + i * gap}`));
+                drawItem(itemStartX, startY, width, height);
+            }
+        }
+        function drawItem(x, y, width, height) {
+            ctx.fillStyle = '#A65E00';
+            ctx.fillRect(x, y, width, height);
+        }
+        return {
+            startXs,
+            draw,
+        };
+    }
+
+    class Plate {
+        value;
+        x;
+        y;
+        width;
+        height;
+        color;
+        pillar;
+        constructor(value, x, y, width, height, color, pillar) {
+            this.value = value;
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+            this.color = color;
+            this.pillar = pillar;
+        }
+        draw(ctx) {
+            const radius = this.height / 2;
+            ctx.beginPath();
+            ctx.moveTo(this.x + radius, this.y);
+            ctx.lineTo(this.x + this.width - radius, this.y);
+            ctx.arcTo(this.x + this.width, this.y, this.x + this.width, this.y + radius, radius);
+            ctx.lineTo(this.x + this.width, this.y + this.height - radius);
+            ctx.arcTo(this.x + this.width, this.y + this.height, this.x + this.width - radius, this.y + this.height, radius);
+            ctx.lineTo(this.x + radius, this.y + this.height);
+            ctx.arcTo(this.x, this.y + this.height, this.x, this.y + this.height - radius, radius);
+            ctx.lineTo(this.x, this.y + radius);
+            ctx.arcTo(this.x, this.y, this.x + radius, this.y, radius);
+            ctx.closePath();
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            // 添加反光效果
+            const gradient = ctx.createRadialGradient(this.x + this.width / 4, this.y + this.height / 4, 0, this.x + this.width / 4, this.y + this.height / 4, this.width / 4);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.ellipse(this.x + this.width / 4, this.y + this.height / 4, this.width / 4, this.height / 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        moveTo(x, y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    const colors = [
+        'red',
+        'orange',
+        'gold',
+        'springGreen',
+        'skyBlue',
+        'magenta',
+        'lightGray',
+        'brown',
+        'purple',
+        'white',
+    ];
+
+    // 获取节点
+    const canvas = document.querySelector('canvas');
+    const stepEl = document.querySelector('#step');
+    const plateEl = document.querySelector('#plate');
+    const durationEl = document.querySelector('#duration');
+    if (!canvas)
+        throw new Error('canvas not found');
+    canvas.width = 500;
+    canvas.height = 500;
+    canvas.style.border = '1px solid #ddd';
+    const ctx = canvas.getContext('2d');
+    const towerNum = 3, [currentStepEl, totalStepEl] = stepEl.children, restart = main;
+    let plateNum = parseInt(plateEl.value), duration = parseInt(durationEl.value), activeGameId;
+    plateEl.addEventListener('change', plateNumChanger);
+    durationEl.addEventListener('change', durationChanger);
+    main();
+    async function main() {
+        const gameId = (activeGameId = window.crypto.randomUUID());
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        fillBackground();
+        const historys = [];
+        // 初始化柱子
+        const pillarWidth = parseInt(canvas.width * 0.03 + ''); // 宽高没什么意义，瞎写的
+        const pillarHeight = parseInt(canvas.height * 0.7 + '');
+        const gapBetweenPillars = (canvas.width - pillarWidth * towerNum) / towerNum + 1;
+        const { startXs, draw: drawPillar } = usePillar(canvas, ctx, towerNum, pillarWidth, pillarHeight, gapBetweenPillars);
+        drawPillar();
+        // 初始化算法的参数
+        const tower = {
+            plates: [],
+            index: 1,
+            count: 0,
+        };
+        const initialTower = {
+            plates: [],
+            index: 0,
+            count: 0,
+        };
+        const auxiliary = {
+            plates: [],
+            index: 2,
+            count: 0,
+        };
+        initTower(initialTower);
+        // 算法核心
+        await move(plateNum, initialTower, tower, auxiliary);
+        updateTotalStep(historys.length);
+        replay(historys);
+        function initTower(initialTower) {
+            const plates = genPlates(plateNum);
+            plates.forEach(plate => {
+                const x = startXs[initialTower.index] + (pillarWidth - plate.width) / 2;
+                const y = canvas.height - plate.height * (plateNum - plate.value);
+                plate.pillar = initialTower.index;
+                plate.moveTo(x, y);
+                plate.draw(ctx);
+            });
+            initialTower.plates = plates;
+            initialTower.count = plates.length;
+        }
+        async function draw(step, index) {
+            currentStepEl.textContent = index + 1 + '';
+            const { from, to, plate } = step;
+            const top = parseInt(canvas.height * 0.15 + '');
+            // 移动到顶部
+            await new Promise(resolve => animate(plate, plate.x, top, resolve));
+            // 横向移动到目标柱子
+            const targetX = startXs[to.index] + (pillarWidth - plate.width) / 2;
+            await new Promise(resolve => animate(plate, targetX, top, resolve));
+            // 放下
+            const targetY = canvas.height - plate.height * (to.count + 1);
+            await new Promise(resolve => animate(plate, targetX, targetY, resolve));
+            from.count--;
+            to.count++;
+        }
+        async function replay(historys) {
+            const length = historys.length;
+            for (let i = 0; i < length; i++) {
+                if (gameId !== activeGameId) {
+                    return;
+                }
+                await draw(historys[i], i);
+            }
+        }
+        async function move(n, source, target, auxiliary) {
+            if (n === 1) {
+                const plate = source.plates.pop();
+                if (!plate)
+                    throw new Error('plate not found');
+                target.plates.push(plate);
+                recordStep(source, target, plate);
+            }
+            else {
+                await move(n - 1, source, auxiliary, target);
+                const plate = source.plates.pop();
+                if (!plate)
+                    throw new Error('plate not found');
+                target.plates.push(plate);
+                recordStep(source, target, plate);
+                await move(n - 1, auxiliary, target, source);
+            }
+        }
+        function recordStep(source, target, plate) {
+            historys.push({ from: source, to: target, plate });
+        }
+        function genPlates(count) {
+            const minW = pillarWidth * 2;
+            const maxW = (canvas.width - minW * towerNum) / towerNum + 1;
+            const h = minW * 0.6;
+            return Array.from({ length: count }, (_, index) => {
+                const value = count - index - 1;
+                const w = minW + ((maxW - minW) / plateNum) * value;
+                return new Plate(value, 0, 0, w, h, colors[index % count], 0);
+            });
+        }
+        function fillBackground() {
+            ctx.fillStyle = '#eee';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        function animate(plate, targetX, targetY, callback) {
+            // 一秒60帧
+            const fps = 60;
+            const ratio = fps / (1000 / duration);
+            const dx = (targetX - plate.x) / ratio;
+            const dy = (targetY - plate.y) / ratio;
+            function step() {
+                redrawWithoutPlate(plate);
+                if (Math.abs(targetX - plate.x) <= Math.abs(dx) &&
+                    Math.abs(targetY - plate.y) <= Math.abs(dy)) {
+                    plate.moveTo(targetX, targetY);
+                    plate.draw(ctx);
+                    callback(undefined);
+                }
+                else {
+                    plate.moveTo(plate.x + dx, plate.y + dy);
+                    plate.draw(ctx);
+                    requestAnimationFrame(step);
+                }
+            }
+            step();
+        }
+        function redrawWithoutPlate(excludedPlate) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            fillBackground();
+            drawPillar();
+            tower.plates.forEach(plate => {
+                if (plate !== excludedPlate) {
+                    plate.draw(ctx);
+                }
+            });
+        }
+    }
+    function updateTotalStep(step) {
+        totalStepEl.textContent = step + '';
+    }
+    function plateNumChanger(e) {
+        const { value } = e.target;
+        plateNum = parseInt(value);
+        restart();
+    }
+    function durationChanger(e) {
+        const { value } = e.target;
+        duration = parseInt(value);
+    }
+
+})();
+</script>
+  </body>
+</html>

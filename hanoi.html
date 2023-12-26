@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hanoi</title>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+      }
+
+      h1,
+      h2 {
+        margin-top: 0;
+      }
+
+      .form {
+        margin-top: 1rem;
+      }
+
+      .form-item {
+        margin-bottom: 0.4rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Hanoi</h1>
+    <h2 id="step"><span>0</span> / <span>0</span></h2>
+    <canvas></canvas>
+
+    <form action="" method="get" class="form">
+      <div class="form-item">
+        <label for="plate">盘子数量: </label>
+        <input type="number" name="plate" id="plate" required value="8" />
+      </div>
+
+      <div class="form-item">
+        <label for="duration">动画时间: </label>
+        <input
+          type="number"
+          name="duration"
+          id="duration"
+          required
+          value="300"
+        />
+      </div>
+    </form>
+
+    <script type="module" src="dist/main.js"></script>
+  </body>
+</html>
